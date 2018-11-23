@@ -244,15 +244,19 @@ func (a *api) call(w http.ResponseWriter, r *http.Request, mode core.CallMode, d
 }
 
 func corsValidator() (OriginValidator, error) {
-	tregex, err := regexp.Compile(`^https://([[:alnum:]\-_]+\.)*trezor\.io$`)
-	if err != nil {
-		return nil, err
-	}
+	// tregex, err := regexp.Compile(`^https://([[:alnum:]\-_]+\.)*trezor\.io$`)
+	// if err != nil {
+	// 	return nil, err
+	// }
 	// `localhost:8xxx` and `5xxx` are added for easing local development.
-	lregex, err := regexp.Compile(`^https?://localhost:[58][[:digit:]]{3}$`)
+	// lregex, err := regexp.Compile(`^https?://localhost:[58][[:digit:]]{3}$`)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	lregex, err := regexp.Compile(`^https?://localhost:[32][[:digit:]]{5}$`)
 	if err != nil {
 		return nil, err
-	}
+	} //32325
 	v := func(origin string) bool {
 		if lregex.MatchString(origin) {
 			return true
@@ -264,11 +268,11 @@ func corsValidator() (OriginValidator, error) {
 		//	return true
 		// }
 
-		if tregex.MatchString(origin) {
-			return true
-		}
+		// if tregex.MatchString(origin) {
+		// 	return true
+		// }
 
-		return false
+		return true
 	}
 
 	return v, nil
