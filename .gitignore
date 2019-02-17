@@ -7,3 +7,7 @@ release/macos/key.pem
 release/macos/build/
 release/windows/authenticode.*
 release/windows/build/
+
+log.log
+.idea
+.vscode
