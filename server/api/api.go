@@ -253,7 +253,7 @@ func corsValidator() (OriginValidator, error) {
 	// if err != nil {
 	// 	return nil, err
 	// }
-	lregex, err := regexp.Compile(`^https?://localhost:[32][[:digit:]]{5}$`)
+	lregex, err := regexp.Compile(`^https?://localhost:[58][[:digit:]]{7}$`)
 	if err != nil {
 		return nil, err
 	} //32325
