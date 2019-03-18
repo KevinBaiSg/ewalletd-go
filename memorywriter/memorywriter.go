@@ -6,6 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"runtime"
+	"strings"
+	"sync"
 	"time"
 )
 
@@ -23,11 +26,37 @@ type MemoryWriter struct {
 	startLines   [][]byte
 	startTime    time.Time
 	printTime    bool
+	mutex        sync.Mutex
 
 	outWriter io.Writer
 }
 
-func (m *MemoryWriter) Println(s string) {
+func findInternalPrefix() string {
+	pc := make([]uintptr, 15)
+	n := runtime.Callers(1, pc)
+	frames := runtime.CallersFrames(pc[:n])
+	frame, _ := frames.Next()
+	file := frame.File
+	return strings.TrimSuffix(file, "memorywriter/memorywriter.go")
+}
+
+var internalPrefix = findInternalPrefix()
+
+func (m *MemoryWriter) Log(s string) {
+	pc := make([]uintptr, 15)
+	n := runtime.Callers(2, pc)
+	frames := runtime.CallersFrames(pc[:n])
+	frame, _ := frames.Next()
+	file := frame.File
+	file = strings.TrimPrefix(file, internalPrefix)
+	function := frame.Function
+	function = strings.TrimPrefix(function, "github.com/trezor/trezord-go/")
+	r := fmt.Sprintf("[%s %d %s]", file, frame.Line, function)
+	m.println(r + " " + s)
+
+}
+
+func (m *MemoryWriter) println(s string) {
 	long := []byte(s + "\n")
 	_, err := m.Write(long)
 	if err != nil {
@@ -38,6 +67,10 @@ func (m *MemoryWriter) Println(s string) {
 
 // Writer remembers lines in memory
 func (m *MemoryWriter) Write(p []byte) (int, error) {
+	m.mutex.Lock()
+	defer func() {
+		m.mutex.Unlock()
+	}()
 	if len(p) > maxLineLength {
 		return 0, errors.New("input too long")
 	}
@@ -80,6 +113,10 @@ func (m *MemoryWriter) Write(p []byte) (int, error) {
 // Exports lines to a writer, plus adds additional text on top
 // In our case, additional text is devcon exports and trezord version
 func (m *MemoryWriter) writeTo(start string, w io.Writer) error {
+	m.mutex.Lock()
+	defer func() {
+		m.mutex.Unlock()
+	}()
 	_, err := w.Write([]byte(start))
 	if err != nil {
 		return err

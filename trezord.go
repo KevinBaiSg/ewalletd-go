@@ -17,7 +17,7 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-const version = "2.0.25"
+const version = "2.0.26"
 
 type udpTouples []usb.PortTouple
 
@@ -73,20 +73,18 @@ func (i *udpPorts) Set(value string) error {
 
 func initUsb(init bool, wr *memorywriter.MemoryWriter, sl *log.Logger) []core.USBBus {
 	if init {
-		wr.Println("Initing libusb")
+		wr.Log("Initing libusb")
 
-		w, err := usb.InitLibUSB(wr, useOnlyLibusb(), allowCancel(), detachKernelDriver())
+		w, err := usb.InitLibUSB(wr, !usb.HIDUse, allowCancel(), detachKernelDriver())
 		if err != nil {
 			sl.Fatalf("libusb: %s", err)
 		}
-		// defer w.Close()
-		// not defering - originally in main, now here, here makes no sense
 
-		if useOnlyLibusb() {
+		if !usb.HIDUse {
 			return []core.USBBus{w}
 		}
 
-		wr.Println("Initing hidapi")
+		wr.Log("Initing hidapi")
 		h, err := usb.InitHIDAPI(wr)
 		if err != nil {
 			sl.Fatalf("hidapi: %s", err)
@@ -102,13 +100,22 @@ func main() {
 	var touples udpTouples
 	var withusb bool
 	var verbose bool
+	var reset bool
+	var versionFlag bool
 
 	flag.StringVar(&logfile, "l", "", "Log into a file, rotating after 20MB")
 	flag.Var(&ports, "e", "Use UDP port for emulator. Can be repeated for more ports. Example: trezord-go -e 21324 -e 21326")
 	flag.Var(&touples, "ed", "Use UDP port for emulator with debug link. Can be repeated for more ports. Example: trezord-go -ed 21324:21326")
 	flag.BoolVar(&withusb, "u", true, "Use USB devices. Can be disabled for testing environments. Example: trezord-go -e 21324 -u=false")
 	flag.BoolVar(&verbose, "v", false, "Write verbose logs to either stderr or logfile")
+	flag.BoolVar(&versionFlag, "version", false, "Write version")
+	flag.BoolVar(&reset, "r", true, "Reset USB device on session acquiring. Enabled by default (to prevent wrong device states); set to false if you plan to connect to debug link outside of bridge.")
 	flag.Parse()
+
+	if versionFlag {
+		fmt.Printf("trezord version %s", version)
+		return
+	}
 
 	var stderrWriter io.Writer
 	if logfile != "" {
@@ -132,11 +139,11 @@ func main() {
 
 	longMemoryWriter := memorywriter.New(90000, 200, true, verboseWriter)
 
-	stderrLogger.Print("trezord is starting.")
+	stderrLogger.Printf("trezord v%s is starting.", version)
 
 	bus := initUsb(withusb, longMemoryWriter, stderrLogger)
 
-	longMemoryWriter.Println(fmt.Sprintf("UDP port count - %d", len(ports)))
+	longMemoryWriter.Log(fmt.Sprintf("UDP port count - %d", len(ports)))
 
 	if len(ports)+len(touples) > 0 {
 		for _, t := range ports {
@@ -157,32 +164,28 @@ func main() {
 	}
 
 	b := usb.Init(bus...)
-	longMemoryWriter.Println("Creating core")
-	c := core.New(b, longMemoryWriter, allowCancel())
-	longMemoryWriter.Println("Creating HTTP server")
+	defer b.Close()
+	longMemoryWriter.Log("Creating core")
+	c := core.New(b, longMemoryWriter, allowCancel(), reset)
+	longMemoryWriter.Log("Creating HTTP server")
 	s, err := server.New(c, stderrWriter, shortMemoryWriter, longMemoryWriter, version)
 
 	if err != nil {
 		stderrLogger.Fatalf("https: %s", err)
 	}
 
-	longMemoryWriter.Println("Running HTTP server")
+	longMemoryWriter.Log("Running HTTP server")
 	err = s.Run()
 	if err != nil {
 		stderrLogger.Fatalf("https: %s", err)
 	}
 
-	longMemoryWriter.Println("Main ended successfully")
+	longMemoryWriter.Log("Main ended successfully")
 }
 
 // Does OS allow sync canceling via our custom libusb patches?
 func allowCancel() bool {
 	return runtime.GOOS != "freebsd"
-}
-
-// Does OS use libusb for HID devices?
-func useOnlyLibusb() bool {
-	return runtime.GOOS == "freebsd" || runtime.GOOS == "linux"
 }
 
 // Does OS detach kernel driver in libusb?

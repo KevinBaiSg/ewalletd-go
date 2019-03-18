@@ -118,12 +118,12 @@ func checkPort(ping chan []byte, w io.Writer) (bool, error) {
 func (udp *UDP) Enumerate() ([]core.USBInfo, error) {
 	var infos []core.USBInfo
 
-	udp.mw.Println("udp - checking ports")
+	udp.mw.Log("checking ports")
 	for _, port := range udp.ports {
-		udp.mw.Println(fmt.Sprintf("udp - check normal port %d", port.Normal))
+		udp.mw.Log(fmt.Sprintf("check normal port %d", port.Normal))
 		normal := udp.lowlevels[port.Normal]
 		presentN, err := checkPort(normal.ping, normal.writer)
-		udp.mw.Println(fmt.Sprintf("udp - check normal port res %t", presentN))
+		udp.mw.Log(fmt.Sprintf("check normal port res %t", presentN))
 		if err != nil {
 			return nil, err
 		}
@@ -179,6 +179,10 @@ func (udp *UDP) Connect(path string, debug bool, reset bool) (core.USBDevice, er
 		lowlevel: udp.lowlevels[port],
 	}
 	return d, nil
+}
+
+func (udp *UDP) Close() {
+	// nothing
 }
 
 type UDPDevice struct {
